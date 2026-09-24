@@ -37,7 +37,7 @@ About 45 minutes in total. Everything here is on free plans. Do the steps in ord
 Wait until Claude confirms the Database ID is pushed.
 
 1. In Cloudflare, open **Workers & Pages → Create → Import a repository**.
-2. Connect your GitHub account when asked and allow access to `kikosrq99/WEBSITE-BOAT`.
+2. Connect your GitHub account when asked and allow access to `kikosrq99/CJ-COMMAND-CENTER`.
 3. Select the repository and set:
    - **Project name:** `cj-command-api`
    - **Production branch:** `claude/jolly-noether-tw3xsg`
