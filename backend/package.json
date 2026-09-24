@@ -1,0 +1,14 @@
+{
+  "name": "cj-command-api",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev --local --test-scheduled",
+    "deploy": "wrangler deploy",
+    "test:unit": "node --test test/unit.test.js",
+    "test:e2e": "node test/e2e.js"
+  },
+  "devDependencies": {
+    "wrangler": "^4.0.0"
+  }
+}

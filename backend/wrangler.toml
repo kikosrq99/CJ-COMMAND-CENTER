@@ -1,0 +1,29 @@
+name = "cj-command-api"
+main = "src/index.js"
+compatibility_date = "2026-09-01"
+
+# Refresh the shared data every 15 minutes. Each source decides whether it is due.
+[triggers]
+crons = ["*/15 * * * *"]
+
+[[d1_databases]]
+binding = "DB"
+database_name = "cj-command"
+# Replace with the ID shown after creating the database (see docs/SETUP.md, step 3).
+database_id = "00000000-0000-0000-0000-000000000000"
+
+[vars]
+META_API_VERSION = "v24.0"
+META_FLOORING_ACCOUNT = "1275464164004722"
+META_POOL_ACCOUNT = "1171862311644217"
+WIX_SITE_ID = "95383499-b3e1-4f6b-ae71-6a84f8e194bf"
+FLOCO_PAGE_ID = "110514834556396"
+BUSINESS_TZ = "America/New_York"
+# Filled in during docs/SETUP.md, step 5 (login).
+ACCESS_TEAM_DOMAIN = ""
+ACCESS_AUD = ""
+
+# Secrets are set in the Cloudflare dashboard, never in this file:
+#   META_TOKEN    Meta system user token with ads_read
+#   WIX_API_KEY   Wix API key with Site Analytics + SEO read access
+#   ADLIB_TOKEN   (optional) Meta Ad Library token, after ID verification
