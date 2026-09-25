@@ -9,8 +9,7 @@ crons = ["*/15 * * * *"]
 [[d1_databases]]
 binding = "DB"
 database_name = "cj-command"
-# Replace with the ID shown after creating the database (see docs/SETUP.md, step 3).
-database_id = "00000000-0000-0000-0000-000000000000"
+database_id = "e307f5fd-88ce-4e11-96a5-f633e539b58a"
 
 [vars]
 META_API_VERSION = "v24.0"
