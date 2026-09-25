@@ -48,6 +48,8 @@ Wait until Claude confirms the Database ID is pushed.
 
 From now on, every change Claude pushes to that branch goes live by itself.
 
+If the first build ran on the wrong branch or folder, fix the settings under **Settings → Builds**, then ask Claude to push any update. **Retry build** re-runs the old build with its old branch, so it fails the same way.
+
 **Send to Claude:** the `workers.dev` web address.
 
 ---
