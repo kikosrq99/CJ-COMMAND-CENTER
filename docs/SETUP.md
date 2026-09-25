@@ -39,12 +39,12 @@ Wait until Claude confirms the Database ID is pushed.
 1. In Cloudflare, open **Workers & Pages → Create → Import a repository**.
 2. Connect your GitHub account when asked and allow access to `kikosrq99/CJ-COMMAND-CENTER`.
 3. Select the repository and set:
-   - **Project name:** `cj-command-api`
+   - **Project name:** `cj-command-center`
    - **Production branch:** `claude/jolly-noether-tw3xsg`
    - **Root directory:** `backend`
    - **Build command:** leave empty
    - **Deploy command:** `npx wrangler deploy`
-4. Click **Save and Deploy**. After a minute it shows a web address like `https://cj-command-api.<your-name>.workers.dev`.
+4. Click **Save and Deploy**. After a minute it shows a web address like `https://cj-command-center.<your-name>.workers.dev`.
 
 From now on, every change Claude pushes to that branch goes live by itself.
 
@@ -56,7 +56,7 @@ From now on, every change Claude pushes to that branch goes live by itself.
 
 This makes sure only people you approve can open the app. Each person signs in with a code emailed to them.
 
-1. Open **Workers & Pages → cj-command-api → Settings → Domains & Routes**.
+1. Open **Workers & Pages → cj-command-center → Settings → Domains & Routes**.
 2. Next to the `workers.dev` route, click the **⋯** menu and choose **Enable Cloudflare Access**. If Cloudflare asks you to pick a team name first, choose something like `cjventures` (this becomes `cjventures.cloudflareaccess.com`).
 3. Click **Manage Cloudflare Access**. In the application's **Policies**, edit the policy so **Include → Emails** lists your email and any team members' emails. (You can add people here later; they must also be added in the app.)
 4. On the same application page, copy the **Application Audience (AUD) Tag** (a long string of letters and numbers).
@@ -97,7 +97,7 @@ A Meta key can only read accounts in its own business, so share the pool account
 
 ### 5d. Give the key to the server (not to Claude)
 
-1. In Cloudflare, open **Workers & Pages → cj-command-api → Settings → Variables and Secrets → Add**.
+1. In Cloudflare, open **Workers & Pages → cj-command-center → Settings → Variables and Secrets → Add**.
 2. Type **Secret**, name `META_TOKEN`, paste the token, **Deploy**.
 
 ---
@@ -107,13 +107,13 @@ A Meta key can only read accounts in its own business, so share the pool account
 1. Go to **manage.wix.com/account/api-keys** → **Generate API Key**.
 2. Name it `CJ Command`. Under permissions for your site `cjfloorstyle.com`, give read access to **Site Analytics** and **SEO** (includes Google Search Console). Nothing else.
 3. Generate and copy the key.
-4. In Cloudflare: **cj-command-api → Settings → Variables and Secrets → Add** → type **Secret**, name `WIX_API_KEY`, paste, **Deploy**.
+4. In Cloudflare: **cj-command-center → Settings → Variables and Secrets → Add** → type **Secret**, name `WIX_API_KEY`, paste, **Deploy**.
 
 ---
 
 ## Step 7 — Check it works (2 min)
 
-1. On your phone, open `https://cj-command-api.<your-name>.workers.dev/api/me`.
+1. On your phone, open `https://cj-command-center.<your-name>.workers.dev/api/me`.
 2. Enter your email, then the code Cloudflare emails you.
 3. You should see your email and `"role":"owner"`.
 4. Within 15 minutes, `/api/snapshot` fills with your ad, website and Google numbers.
