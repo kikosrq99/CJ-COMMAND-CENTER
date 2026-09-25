@@ -54,16 +54,9 @@ If the first build ran on the wrong branch or folder, fix the settings under **S
 
 ---
 
-## Step 4 — Turn on the login (5 min)
+## Step 4 — Login (done by Claude)
 
-This makes sure only people you approve can open the app. Each person signs in with a code emailed to them.
-
-1. Open **Workers & Pages → cj-command-center → Settings → Domains & Routes**.
-2. Next to the `workers.dev` route, click the **⋯** menu and choose **Enable Cloudflare Access**. If Cloudflare asks you to pick a team name first, choose something like `cjventures` (this becomes `cjventures.cloudflareaccess.com`).
-3. Click **Manage Cloudflare Access**. In the application's **Policies**, edit the policy so **Include → Emails** lists your email and any team members' emails. (You can add people here later; they must also be added in the app.)
-4. On the same application page, copy the **Application Audience (AUD) Tag** (a long string of letters and numbers).
-
-**Send to Claude:** the AUD tag and your team domain (for example `cjventures.cloudflareaccess.com`).
+Nothing to do. The app has its own login: each person signs in with their email and a personal access code. Claude creates your owner code; team members get theirs from the app later.
 
 ---
 
@@ -97,10 +90,11 @@ A Meta key can only read accounts in its own business, so share the pool account
 5. Click **Generate new token**. App: `CJ Command`. Expiration: **Never**. Permissions: **ads_read** only. Generate.
 6. Copy the token. Meta shows it only once.
 
-### 5d. Give the key to the server (not to Claude)
+### 5d. Give the key to the server
 
-1. In Cloudflare, open **Workers & Pages → cj-command-center → Settings → Variables and Secrets → Add**.
-2. Type **Secret**, name `META_TOKEN`, paste the token, **Deploy**.
+Paste the token to Claude in the chat. Claude stores it in your database, where only the server reads it. It is never shown in the app.
+
+(Alternative that keeps it out of the chat: Cloudflare → **cj-command-center → Settings → Variables and Secrets → Add** → type **Secret**, name `META_TOKEN`.)
 
 ---
 
@@ -109,7 +103,7 @@ A Meta key can only read accounts in its own business, so share the pool account
 1. Go to **manage.wix.com/account/api-keys** → **Generate API Key**.
 2. Name it `CJ Command`. Under permissions for your site `cjfloorstyle.com`, give read access to **Site Analytics** and **SEO** (includes Google Search Console). Nothing else.
 3. Generate and copy the key.
-4. In Cloudflare: **cj-command-center → Settings → Variables and Secrets → Add** → type **Secret**, name `WIX_API_KEY`, paste, **Deploy**.
+4. Paste the key to Claude in the chat (or add it yourself as a Cloudflare secret named `WIX_API_KEY`, as in 5d).
 
 ---
 

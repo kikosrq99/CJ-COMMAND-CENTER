@@ -2,6 +2,7 @@ import { fetchMeta } from './sources/meta.js';
 import { fetchWeb } from './sources/wix.js';
 import { fetchFloco } from './sources/floco.js';
 import { ymdInTz } from './util.js';
+import { withSettings } from './config.js';
 
 // Meta updates its reporting about every 15 minutes; Google publishes daily; Floco changes rarely.
 export const SOURCES = {
@@ -27,7 +28,8 @@ export async function readSnapshots(env) {
   return out;
 }
 
-export async function refreshAll(env, { now = Date.now(), force = false } = {}) {
+export async function refreshAll(baseEnv, { now = Date.now(), force = false } = {}) {
+  const env = await withSettings(baseEnv);
   const today = ymdInTz(new Date(now), env.BUSINESS_TZ);
   const snaps = await readSnapshots(env);
   const due = Object.keys(SOURCES).filter((k) => {
@@ -60,6 +62,9 @@ export async function refreshAll(env, { now = Date.now(), force = false } = {}) 
       );
     }
   });
-  if (statements.length) await env.DB.batch(statements);
+  // Housekeeping: drop expired sign-ins and old failed-login counters.
+  statements.push(env.DB.prepare('DELETE FROM sessions WHERE expires_at < ?').bind(now));
+  statements.push(env.DB.prepare('DELETE FROM login_attempts WHERE window_start < ?').bind(now - 24 * 60 * 60 * 1000));
+  await env.DB.batch(statements);
   return { today, refreshed: due, errors };
 }

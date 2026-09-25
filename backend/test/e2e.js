@@ -72,14 +72,20 @@ const upstream = http.createServer((req, res) => {
 });
 
 // ---------- helpers ----------
-async function api(method, p, { user = OWNER, body, headers = {} } = {}) {
+async function api(method, p, { user = OWNER, body, headers = {}, cookie } = {}) {
   const res = await fetch(WORKER + p, {
     method,
-    headers: { 'x-dev-user': user, ...(body ? { 'content-type': 'application/json' } : {}), ...headers },
+    headers: {
+      ...(user ? { 'x-dev-user': user } : {}),
+      ...(cookie ? { cookie } : {}),
+      ...(body ? { 'content-type': 'application/json' } : {}),
+      ...headers,
+    },
     body: body ? JSON.stringify(body) : undefined,
   });
   const text = await res.text();
-  return { status: res.status, etag: res.headers.get('etag'), body: text ? JSON.parse(text) : null };
+  const setCookie = res.headers.get('set-cookie');
+  return { status: res.status, etag: res.headers.get('etag'), body: text ? JSON.parse(text) : null, setCookie };
 }
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 // wrangler's local trigger always uses the real clock, so time passing is simulated by backdating the last attempt.
@@ -102,14 +108,15 @@ async function step(name, fn) {
 // ---------- run ----------
 const devVars = path.join(ROOT, '.dev.vars');
 fs.writeFileSync(devVars, [
-  'DEV_MODE=true', `DEV_USER_EMAIL=${OWNER}`, 'META_TOKEN=meta-test-token', 'WIX_API_KEY=wix-test-key', 'ADLIB_TOKEN=adlib-test-token',
+  'DEV_MODE=true',
   `META_BASE_URL=http://127.0.0.1:${MOCK_PORT}`, `WIX_BASE_URL=http://127.0.0.1:${MOCK_PORT}`,
 ].join('\n') + '\n');
 fs.rmSync(path.join(ROOT, '.wrangler/state'), { recursive: true, force: true });
 const wr = (args) => execFileSync('npx', ['wrangler', ...args], { cwd: ROOT, env, stdio: 'pipe' }).toString();
 wr(['d1', 'execute', 'cj-command', '--local', '--file', 'schema.sql']);
 wr(['d1', 'execute', 'cj-command', '--local', '--command',
-  `INSERT INTO users (email, role, name, added_at) VALUES ('${OWNER}', 'owner', 'Owner', 0), ('${TEAM}', 'team', 'Team', 0);`]);
+  `INSERT INTO users (email, role, name, added_at) VALUES ('${OWNER}', 'owner', 'Owner', 0), ('${TEAM}', 'team', 'Team', 0);
+   INSERT INTO settings (key, value, updated_at) VALUES ('META_TOKEN', 'meta-test-token', 0), ('WIX_API_KEY', 'wix-test-key', 0), ('ADLIB_TOKEN', 'adlib-test-token', 0);`]);
 
 try {
   await fetch(WORKER + '/api/health');
@@ -277,6 +284,74 @@ try {
     assert.equal((await api('DELETE', '/api/users/new%40test.local')).status, 200);
     assert.equal((await api('GET', '/api/me', { user: 'new@test.local' })).status, 403);
     assert.equal((await api('DELETE', `/api/users/${encodeURIComponent(OWNER)}`)).status, 400);
+  });
+
+  let code;
+  let session;
+  await step('owner adds a person and gets a one-time access code', async () => {
+    const r = await api('POST', '/api/users', { body: { email: 'crew@test.local', role: 'team', name: 'Crew' } });
+    assert.equal(r.status, 201);
+    code = r.body.accessCode;
+    assert.match(code, /^[A-Z2-9]{5}-[A-Z2-9]{5}-[A-Z2-9]{5}$/);
+    const again = await api('POST', '/api/users', { body: { email: 'crew@test.local', role: 'team' } });
+    assert.equal(again.body.accessCode, undefined, 'code is not re-issued on a plain update');
+  });
+
+  await step('no session and no header: sign-in required', async () => {
+    assert.equal((await api('GET', '/api/me', { user: null })).status, 401);
+  });
+
+  await step('wrong code is refused; right code signs in with a 90-day cookie', async () => {
+    const bad = await api('POST', '/api/login', { user: null, body: { email: 'crew@test.local', code: 'AAAAA-BBBBB-CCCCC' } });
+    assert.equal(bad.status, 401);
+    const good = await api('POST', '/api/login', { user: null, body: { email: 'Crew@Test.local', code: code.toLowerCase().replace(/-/g, ' ') } });
+    assert.equal(good.status, 200);
+    assert.equal(good.body.role, 'team');
+    assert.match(good.setCookie, /cj_session=[^;]+; Path=\/; HttpOnly; Secure; SameSite=Lax; Max-Age=7776000/);
+    session = good.setCookie.split(';')[0];
+    const me = await api('GET', '/api/me', { user: null, cookie: session });
+    assert.equal(me.body.email, 'crew@test.local');
+    assert.equal((await api('GET', '/api/jobs', { user: null, cookie: session })).status, 403);
+  });
+
+  await step('sign-in is not possible from another website', async () => {
+    const r = await api('POST', '/api/login', { user: null, body: { email: 'crew@test.local', code }, headers: { origin: 'https://evil.example' } });
+    assert.equal(r.status, 403);
+  });
+
+  await step('logout ends the session', async () => {
+    const out = await api('POST', '/api/logout', { user: null, cookie: session, body: {} });
+    assert.match(out.setCookie, /Max-Age=0/);
+    assert.equal((await api('GET', '/api/me', { user: null, cookie: session })).status, 401);
+  });
+
+  await step('a new code kicks out old sessions', async () => {
+    const s1 = (await api('POST', '/api/login', { user: null, body: { email: 'crew@test.local', code } })).setCookie.split(';')[0];
+    const reset = await api('POST', '/api/users', { body: { email: 'crew@test.local', role: 'team', newCode: true } });
+    assert.notEqual(reset.body.accessCode, code);
+    assert.equal((await api('GET', '/api/me', { user: null, cookie: s1 })).status, 401);
+    assert.equal((await api('POST', '/api/login', { user: null, body: { email: 'crew@test.local', code } })).status, 401, 'old code no longer works');
+    code = reset.body.accessCode;
+  });
+
+  await step('removing a person signs them out everywhere', async () => {
+    const s2 = (await api('POST', '/api/login', { user: null, body: { email: 'crew@test.local', code } })).setCookie.split(';')[0];
+    assert.equal((await api('DELETE', '/api/users/crew%40test.local')).status, 200);
+    assert.equal((await api('GET', '/api/me', { user: null, cookie: s2 })).status, 401);
+  });
+
+  await step('8 wrong tries lock the email for 15 minutes, even with the right code after', async () => {
+    const r = await api('POST', '/api/users', { body: { email: 'lock@test.local', role: 'team' } });
+    for (let i = 0; i < 8; i++) {
+      assert.equal((await api('POST', '/api/login', { user: null, body: { email: 'lock@test.local', code: 'WRONG-WRONG-WRONG' } })).status, 401);
+    }
+    const locked = await api('POST', '/api/login', { user: null, body: { email: 'lock@test.local', code: r.body.accessCode } });
+    assert.equal(locked.status, 429);
+  });
+
+  await step('keys and code hashes never appear in any response', async () => {
+    const all = JSON.stringify([(await api('GET', '/api/snapshot')).body, (await api('GET', '/api/users')).body, (await api('GET', '/api/me')).body]);
+    for (const secret of ['meta-test-token', 'wix-test-key', 'adlib-test-token', 'code_hash', 'code_salt']) assert.ok(!all.includes(secret), secret);
   });
 
   await step('lead delete', async () => {

@@ -1,4 +1,4 @@
-import { currentUser } from './auth.js';
+import { currentUser, login, logout, setAccessCode } from './auth.js';
 import { readSnapshots, refreshAll, SOURCES } from './refresh.js';
 import { HttpError, json, newId, readJsonBody } from './util.js';
 
@@ -258,16 +258,22 @@ async function usersRoute(request, env, user, email) {
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(newEmail)) throw new HttpError(400, 'Enter a valid email address');
     const role = text(body, 'role', 10, { fallback: 'team' });
     if (!['owner', 'team'].includes(role)) throw new HttpError(400, 'role must be owner or team');
+    const existing = await env.DB.prepare('SELECT code_hash FROM users WHERE email = ?').bind(newEmail).first();
     await env.DB.prepare(
       `INSERT INTO users (email, role, name, added_at) VALUES (?1, ?2, ?3, ?4)
        ON CONFLICT(email) DO UPDATE SET role = excluded.role, name = excluded.name`,
     ).bind(newEmail, role, text(body, 'name', 80), Date.now()).run();
-    return json({ user: { email: newEmail, role } }, { status: 201 });
+    // A new person, or newCode: true, gets a fresh access code. It is shown once and only its hash is stored.
+    const accessCode = !existing || !existing.code_hash || body.newCode === true ? await setAccessCode(env, newEmail) : undefined;
+    return json({ user: { email: newEmail, role }, accessCode }, { status: 201 });
   }
   if (request.method === 'DELETE' && email) {
     const target = decodeURIComponent(email).toLowerCase();
     if (target === user.email) throw new HttpError(400, 'You cannot remove yourself');
-    await env.DB.prepare('DELETE FROM users WHERE email = ?').bind(target).run();
+    await env.DB.batch([
+      env.DB.prepare('DELETE FROM users WHERE email = ?').bind(target),
+      env.DB.prepare('DELETE FROM sessions WHERE email = ?').bind(target),
+    ]);
     return json({ deleted: target });
   }
   throw new HttpError(405, 'Method not allowed');
@@ -289,6 +295,16 @@ export async function handleApi(request, env) {
   if (parts[0] === 'health') return json({ ok: true });
 
   if (request.method !== 'GET' && request.method !== 'HEAD') checkOrigin(request);
+  if (parts[0] === 'login' && request.method === 'POST') {
+    const body = await readJsonBody(request);
+    const email = text(body, 'email', 200, { required: true }).toLowerCase();
+    const code = text(body, 'code', 40, { required: true });
+    const { user, cookie } = await login(env, request, email, code);
+    return json(user, { headers: { 'set-cookie': cookie } });
+  }
+  if (parts[0] === 'logout' && request.method === 'POST') {
+    return json({ ok: true }, { headers: { 'set-cookie': await logout(env, request) } });
+  }
   const user = await currentUser(request, env);
   const [resource, id] = parts;
   if (parts.length > 2) throw new HttpError(404, 'Not found');

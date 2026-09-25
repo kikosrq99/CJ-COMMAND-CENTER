@@ -18,7 +18,11 @@ If a source fails, its last good data stays and the error is reported next to it
 
 ## Sign-in and roles
 
-Cloudflare Access (free for up to 50 people) handles sign-in with a one-time email code. The Worker verifies Access's signed token on every request, then looks the email up in the `users` table:
+Each person signs in with their email and a personal access code (`XXXXX-XXXXX-XXXXX`, about 74 random bits). The owner creates people and codes; a code is shown once and only its salted hash is stored. A successful sign-in sets a 90-day `HttpOnly`, `Secure`, `SameSite=Lax` session cookie; only a hash of the session token is stored. Eight wrong codes lock that email for 15 minutes (30 per network address, since a crew often shares one Wi-Fi). Issuing a new code or removing a person signs them out everywhere.
+
+Cloudflare Access still works as an alternative when `ACCESS_TEAM_DOMAIN` and `ACCESS_AUD` are set.
+
+Roles come from the `users` table:
 
 - `owner` — everything, including job P&L, team management and manual refresh.
 - `team` — ad results, website and Google data, Floco, leads. No P&L.
@@ -30,13 +34,15 @@ All routes need a signed-in user except `/api/health`.
 | Method | Path | Who | |
 |---|---|---|---|
 | GET | `/api/health` | anyone | Liveness check |
+| POST | `/api/login` | anyone | `{email, code}` → session cookie |
+| POST | `/api/logout` | anyone | Ends this phone's session |
 | GET | `/api/me` | all | Email and role |
 | GET | `/api/snapshot` | all | All source data + change counters. Supports `If-None-Match` |
 | GET/POST | `/api/leads` | all | List / create leads |
 | GET/PATCH/DELETE | `/api/leads/:id` | all | Read / update / delete a lead |
 | GET/POST | `/api/jobs` | owner | List / create jobs |
 | GET/PATCH/DELETE | `/api/jobs/:id` | owner | Read / update / delete a job |
-| GET/POST | `/api/users` | owner | List / add or change a team member (`{email, role, name}`) |
+| GET/POST | `/api/users` | owner | List / add or change a team member (`{email, role, name, newCode?}`). Returns `accessCode` once for a new person or when `newCode` is true |
 | DELETE | `/api/users/:email` | owner | Remove a team member |
 | POST | `/api/refresh` | owner | Pull everything now (at most once a minute) |
 
@@ -46,7 +52,7 @@ Lead stages: `contacted`, `qualified`, `won`, `lost`. `apptDay` is 0 (Monday) to
 
 ## Configuration
 
-Plain settings live in `wrangler.toml` (`[vars]`). Secrets are added in the Cloudflare dashboard (Worker → Settings → Variables and Secrets) and are never committed:
+Plain settings live in `wrangler.toml` (`[vars]`). Access keys are never committed. They go either in the `settings` table (`key`, `value`, `updated_at`) or as Worker secrets in the Cloudflare dashboard; a dashboard secret wins if both exist:
 
 | Secret | Required | |
 |---|---|---|
